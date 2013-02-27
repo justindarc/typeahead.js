@@ -748,7 +748,8 @@
             return {
                 value: $suggestion.data("value"),
                 query: $suggestions.data("query"),
-                dataset: $suggestions.data("dataset")
+                dataset: $suggestions.data("dataset"),
+                index: $suggestions.children().index($suggestion)
             };
         }
     }();
@@ -758,6 +759,7 @@
             hint: '<input class="tt-hint" type="text" autocomplete="off" spellcheck="false" disabled>',
             dropdown: '<ol class="tt-dropdown-menu tt-is-empty"></ol>'
         };
+        var renderedSuggestions = [];
         function TypeaheadView(o) {
             utils.bindAll(this);
             this.$node = wrapInput(o.input);
@@ -843,11 +845,22 @@
                 }
             },
             _handleSelection: function(e) {
+                var query, selectedItem, dataset, selectionCallback;
                 var byClick = e.type === "select", suggestionData = byClick ? e.data : this.dropdownView.getSuggestionUnderCursor();
                 if (suggestionData) {
                     this.inputView.setInputValue(suggestionData.value);
                     byClick ? this.inputView.focus() : e.data.preventDefault();
                     byClick && utils.isMsie() ? setTimeout(this.dropdownView.hide, 0) : this.dropdownView.hide();
+                    query = suggestionData.query;
+                    selectedItem = renderedSuggestions[suggestionData.index] || renderedSuggestions[0];
+                    selectionCallback = this.datasets[suggestionData.dataset].selectionCallback;
+                    if (selectionCallback && typeof selectionCallback === "function") {
+                        selectionCallback(query, selectedItem);
+                    }
+                    this.inputView.$input.trigger(jQuery.Event("selection", {
+                        query: query,
+                        selectedItem: selectedItem
+                    }));
                 }
             },
             _getSuggestions: function() {
@@ -862,7 +875,7 @@
                 if (query !== this.inputView.getQuery()) {
                     return;
                 }
-                suggestions = suggestions.slice(0, dataset.limit);
+                suggestions = renderedSuggestions = suggestions.slice(0, dataset.limit);
                 this.dropdownView.renderSuggestions(query, dataset, suggestions);
             },
             _autocomplete: function(e) {
@@ -939,7 +952,8 @@
                         limit: datasetDef.limit,
                         template: datasetDef.template,
                         engine: datasetDef.engine,
-                        getSuggestions: dataset.getSuggestions
+                        getSuggestions: dataset.getSuggestions,
+                        selectionCallback: datasetDef.selectionCallback
                     };
                 });
                 return this.each(function() {
